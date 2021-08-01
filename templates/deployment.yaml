@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "matomo.fullname" . }}
+  labels:
+    {{- include "matomo.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "matomo.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "matomo.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "matomo.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: MATOMO_DATABASE_HOST
+              value: {{ .Values.db.host }}
+            - name: MATOMO_DATABASE_PORT_NUMBER
+              value: {{ .Values.db.portnumber | quote }}
+            - name: MATOMO_DATABASE_NAME
+              value: {{ .Values.mariadb.auth.database }}  
+            {{ if .Values.mariadb.auth.username }}
+            - name: MATOMO_DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: matomo
+                  key: mariadb_auth_username
+            {{ end }}
+            {{ if .Values.mariadb.auth.password }}
+            - name: MATOMO_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: matomo
+                  key: mariadb_auth_password
+            {{ end }}
+            - name: MATOMO_SMTP_HOST
+              value: {{ .Values.smtp.host }}
+            - name: MATOMO_SMTP_PORT
+              value: {{ .Values.smtp.port | quote }}    
+            {{ if .Values.smtp.user }}
+            - name: MATOMO_SMTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: matomo
+                  key: smtp_user
+            {{ end }}
+            {{ if .Values.smtp.password }}
+            - name: MATOMO_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: matomo
+                  key: smtp_password
+            {{ end }}
+            - name: APACHE_HTTP_PORT_NUMBER
+              value: {{ .Values.service.port | quote }}
+            {{- with (first .Values.ingress.hosts) }}
+            - name: MATOMO_WEBSITE_HOST
+              value: https://{{ .host }}
+            {{- end }}
+            - name: MATOMO_WEBSITE_NAME
+              value: {{ .Values.website.name }}
+            - name: BITNAMI_DEBUG
+              value: {{ .Values.bitnami_debug | quote}}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
