@@ -73,7 +73,7 @@ ingress:
   hosts:
     - host: overwrite-this
       paths: 
-       - path: /
+        - path: /
   tls:
     - secretName: overwrite-this
       hosts:
